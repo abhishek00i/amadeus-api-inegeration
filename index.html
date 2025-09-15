@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Price Checker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="root"></div>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script type="text/babel">
+        const { useState } = React;
+
+        // --- NEW COMPONENT: ItineraryCard ---
+        // A dedicated component to display the details of one journey (outbound or return).
+        const ItineraryCard = ({ title, journey }) => {
+            // Helper function to format date and time for better readability
+            const formatDateTime = (isoString) => {
+                const date = new Date(isoString);
+                const options = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true };
+                return date.toLocaleString('en-US', options);
+            };
+
+            return (
+                <div className="border border-gray-200 rounded-xl p-4 mt-4 text-left">
+                    <h4 className="font-bold text-lg text-gray-700 mb-3">{title}</h4>
+                    {journey.segments.map((segment, index) => (
+                        <div key={index}>
+                            {/* Display layover info if it's not the first flight in the journey */}
+                            {index > 0 && (
+                                <div className="text-center my-3">
+                                    <p className="text-sm font-semibold text-indigo-600 bg-indigo-100 rounded-full inline-block px-3 py-1">
+                                        Layover in {journey.segments[index - 1].arrival_airport}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Flight segment details */}
+                            <div className="flex items-center justify-between space-x-2">
+                                <div className="text-right">
+                                    <p className="font-bold text-xl text-gray-800">{segment.departure_airport}</p>
+                                    <p className="text-sm text-gray-500">{formatDateTime(segment.departure_time)}</p>
+                                </div>
+                                <div className="flex-grow text-center">
+                                    <p className="text-xs text-gray-500">{`${segment.airline_code} ${segment.flight_number}`}</p>
+                                    <div className="relative">
+                                        <hr className="border-gray-300 border-dashed" />
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-1 text-indigo-600"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">{segment.duration.replace('PT','').replace('H','h ').replace('M','m')}</p>
+                                </div>
+                                <div className="text-left">
+                                    <p className="font-bold text-xl text-gray-800">{segment.arrival_airport}</p>
+                                    <p className="text-sm text-gray-500">{formatDateTime(segment.arrival_time)}</p>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+
+        const App = () => {
+          const [showModal, setShowModal] = useState(false);
+          const [origin, setOrigin] = useState('');
+          const [destination, setDestination] = useState('');
+          const [departureDate, setDepartureDate] = useState('');
+          const [duration, setDuration] = useState('');
+          // --- STATE CHANGE: from 'price' to 'flightData' to hold the whole object ---
+          const [flightData, setFlightData] = useState(null);
+          const [error, setError] = useState('');
+          const [isLoading, setIsLoading] = useState(false);
+
+          const handleSubmit = async (e) => {
+            e.preventDefault();
+            setIsLoading(true);
+            setError('');
+            setFlightData(null); // Clear previous results
+
+            const apiUrl = `/flight-price?origin=${origin}&destination=${destination}&departure_date=${departureDate}&duration=${duration}%20days`;
+
+            try {
+              const response = await fetch(apiUrl);
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'An unknown error occurred.');
+              }
+              const data = await response.json();
+              // --- LOGIC CHANGE: Store the entire data object ---
+              if (data.total_price_in_inr) {
+                setFlightData(data);
+              } else {
+                setError(data.message || 'No flight offers found.');
+              }
+            } catch (err) {
+              setError(err.message);
+            } finally {
+              setIsLoading(false);
+            }
+          };
+
+          const handleClose = () => {
+            setShowModal(false);
+            setOrigin('');
+            setDestination('');
+            setDepartureDate('');
+            setDuration('');
+            setFlightData(null); // Reset flight data on close
+            setError('');
+            setIsLoading(false);
+          };
+
+          return (
+            <div className="min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center p-4 font-sans">
+              <div className="relative z-10 p-8 bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl text-center border border-white/30">
+                <h1 className="text-4xl font-extrabold text-white mb-6">Flight Price Checker</h1>
+                <p className="text-white/80 mb-8 max-w-sm">Find the cheapest round-trip flight prices instantly by filling out the details.</p>
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="bg-white text-indigo-600 font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                >
+                  Find a Two-Way Flight
+                </button>
+              </div>
+
+              {showModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                  <div className="bg-white rounded-3xl p-8 shadow-2xl relative w-full max-w-2xl">
+                    <button
+                      onClick={handleClose}
+                      className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                    <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">Flight Search</h2>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                      {/* Form inputs remain the same */}
+                      <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+                        <div className="flex-1">
+                          <label htmlFor="origin" className="block text-gray-600 mb-1">Origin Airport Code</label>
+                          <input type="text" id="origin" value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="e.g., DEL" className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" required />
+                        </div>
+                        <div className="flex-1">
+                          <label htmlFor="destination" className="block text-gray-600 mb-1">Destination Airport Code</label>
+                          <input type="text" id="destination" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="e.g., LAX" className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" required />
+                        </div>
+                      </div>
+                      <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+                        <div className="flex-1">
+                          <label htmlFor="departureDate" className="block text-gray-600 mb-1">Departure Date</label>
+                          <input type="date" id="departureDate" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" required />
+                        </div>
+                        <div className="flex-1">
+                          <label htmlFor="duration" className="block text-gray-600 mb-1">Duration (days)</label>
+                          <input type="number" id="duration" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="e.g., 5" min="1" className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" required />
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <button type="submit" disabled={isLoading} className={`w-full sm:w-auto px-8 py-3 rounded-full text-white font-bold transition-all duration-300 ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 shadow-md hover:shadow-lg'}`}>
+                          {isLoading ? 'Searching...' : 'Search for Flights'}
+                        </button>
+                      </div>
+                    </form>
+
+                    {/* --- UI CHANGE: New display area for flight results --- */}
+                    <div className="mt-6 text-center">
+                      {isLoading && <p className="text-indigo-600">Fetching the best flight prices...</p>}
+                      {error && <p className="text-red-500 font-medium">Error: {error}</p>}
+
+                      {flightData && (
+                        <div className="bg-gray-50 p-6 rounded-2xl animate-fade-in">
+                          <div className="mb-4">
+                            <p className="text-gray-600">Cheapest Round Trip</p>
+                            <p className="text-4xl font-extrabold text-green-600">
+                              ₹{flightData.total_price_in_inr.toFixed(2)}
+                            </p>
+                          </div>
+
+                          <ItineraryCard 
+                            title={`🛫 Outbound: ${origin.toUpperCase()} → ${destination.toUpperCase()}`}
+                            journey={flightData.outbound_journey} 
+                          />
+                          
+                          {flightData.return_journey && (
+                            <ItineraryCard 
+                              title={`🛬 Return: ${destination.toUpperCase()} → ${origin.toUpperCase()}`} 
+                              journey={flightData.return_journey} 
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
